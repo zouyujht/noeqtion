@@ -44,6 +44,8 @@ async function convertMathEquations() {
       ".notion-text-action-menu { opacity: 0 !important; transform: scale(0.001) !important; pointer-events: none !important; }"
   );
 
+  await formatParentheses();
+
   while (true) {
     const equations = findEquations();
 
@@ -266,3 +268,62 @@ function dispatchKeyEvent(key, options = {}) {
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+async function formatParentheses() {
+  while (true) {
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    let targetNode = null;
+    let targetMatch = null;
+    let isLeft = false;
+
+    let node;
+    while ((node = walker.nextNode())) {
+      if (!node.nodeValue) continue;
+      
+      let match = node.nodeValue.match(/([\(（])(\$\$?)/);
+      if (match) {
+        targetNode = node;
+        targetMatch = match;
+        isLeft = true;
+        break;
+      }
+      
+      match = node.nodeValue.match(/(\$\$?)([\)）])/);
+      if (match) {
+        targetNode = node;
+        targetMatch = match;
+        isLeft = false;
+        break;
+      }
+    }
+
+    if (!targetNode) break;
+
+    const editableParent = findEditableParent(targetNode);
+    if (!editableParent) {
+      // If not editable, just modify nodeValue to avoid infinite loop
+      if (isLeft) {
+        targetNode.nodeValue = targetNode.nodeValue.replace(/([\(（])(\$\$?)/, '$1 $2');
+      } else {
+        targetNode.nodeValue = targetNode.nodeValue.replace(/(\$\$?)([\)）])/, '$1 $2');
+      }
+      continue;
+    }
+
+    editableParent.click();
+    await delay(TIMING.FOCUS);
+
+    selectText(targetNode, targetMatch.index, targetMatch[0].length);
+    await delay(TIMING.QUICK);
+
+    const replacement = isLeft ? targetMatch[1] + " " + targetMatch[2] : targetMatch[1] + " " + targetMatch[2];
+    document.execCommand("insertText", false, replacement);
+    await delay(TIMING.POST_CONVERT);
+  }
+}
+
