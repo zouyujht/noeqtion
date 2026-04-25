@@ -277,7 +277,11 @@ function delay(ms) {
 // Toggle List Management
 
 function findCollapsedToggleArrows() {
-  const toggleButtons = Array.from(document.querySelectorAll('[role="button"]'));
+  // Only search within the main editor area to avoid expanding sidebar items or other UI elements
+  const editorContainer = document.querySelector('.notion-page-content');
+  if (!editorContainer) return [];
+
+  const toggleButtons = Array.from(editorContainer.querySelectorAll('[role="button"]'));
   const arrows = [];
 
   for (const button of toggleButtons) {
