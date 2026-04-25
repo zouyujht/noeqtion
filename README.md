@@ -7,6 +7,20 @@ https://github.com/user-attachments/assets/f872b9ef-1ce1-4ce5-bc26-92bc96a0a116
 
 _See the extension in action converting LaTeX equations to Notion's native math blocks_
 
+## Recent Fixes
+
+### 1. Formatting issue in list items (Issue #1)
+Added a pre-processing step `formatParentheses()` before Notion conversion. This prevents Notion from rendering equations as separate code blocks outside the text flow by adding spaces around LaTeX expressions that are enclosed in parentheses (e.g., `($...$)` or `（$...$）`).
+
+### 2. Render markdown equations in folded lists (Issue #2)
+Notion lazy-renders toggle list content. The extension now automatically expands all collapsed toggles (only within the main editor area) before scanning for equations, and restores them to their collapsed state after conversion.
+
+**Demonstration of the fixes:**
+
+<video src="test.mp4" controls="controls" style="max-width: 100%;">
+  Your browser does not support the video tag.
+</video>
+
 ## Features
 
 - **Automatic Conversion**: Detects both inline (`$...$`) and block (`$$...$$`) equations.
