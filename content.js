@@ -12,6 +12,8 @@ const TIMING = {
   MATH_BLOCK: 100,
   // Wait after a conversion for Notion to update the DOM before rescanning/continuing
   POST_CONVERT: 300,
+  // Wait for Notion to lazy-load content after expanding a toggle
+  TOGGLE_EXPAND: 300,
 };
 
 const api = typeof browser !== "undefined" ? browser : chrome;
@@ -44,6 +46,7 @@ async function convertMathEquations() {
       ".notion-text-action-menu { opacity: 0 !important; transform: scale(0.001) !important; pointer-events: none !important; }"
   );
 
+  const expandedToggles = await expandAllToggles();
   await formatParentheses();
 
   while (true) {
@@ -64,6 +67,8 @@ async function convertMathEquations() {
       break;
     }
   }
+
+  await collapseToggles(expandedToggles);
 
   // Remove the injected style
   const styleTag = document.getElementById("notion-math-converter-hide-dialog");
@@ -267,6 +272,77 @@ function dispatchKeyEvent(key, options = {}) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Toggle List Management
+
+function findCollapsedToggleArrows() {
+  const toggleButtons = Array.from(document.querySelectorAll('[role="button"]'));
+  const arrows = [];
+
+  for (const button of toggleButtons) {
+    // Strategy 1: Semantic ARIA state (preferred)
+    if (button.getAttribute('aria-expanded') === 'false') {
+      arrows.push(button);
+      continue;
+    }
+
+    // Strategy 2: Check SVG rotation style (Notion's implementation)
+    // When closed, the arrow has rotateZ(0deg) or rotate(0deg) or no transform
+    // When open, it has rotateZ(90deg)
+    const svg = button.querySelector('svg');
+    if (svg && svg.parentElement) {
+      const style = svg.parentElement.style.transform;
+      if (style && (style.includes('rotateZ(0') || style.includes('rotate(0'))) {
+        arrows.push(button);
+      }
+    }
+  }
+
+  return arrows;
+}
+
+async function expandAllToggles() {
+  const expandedToggles = [];
+  const processedToggles = new Set();
+  let hasNewToggles = true;
+
+  // Loop to handle nested toggles that appear after parent expansion
+  while (hasNewToggles) {
+    hasNewToggles = false;
+    const collapsedArrows = findCollapsedToggleArrows();
+
+    for (const arrow of collapsedArrows) {
+      if (!processedToggles.has(arrow)) {
+        arrow.click();
+        expandedToggles.push(arrow);
+        processedToggles.add(arrow);
+        hasNewToggles = true;
+        await delay(TIMING.TOGGLE_EXPAND);
+      }
+    }
+  }
+
+  if (expandedToggles.length > 0) {
+    console.log(`Expanded ${expandedToggles.length} toggle lists`);
+  }
+  
+  return expandedToggles;
+}
+
+async function collapseToggles(expandedToggles) {
+  if (!expandedToggles || expandedToggles.length === 0) return;
+
+  // Collapse in reverse order (inner-to-outer for nested toggles)
+  for (let i = expandedToggles.length - 1; i >= 0; i--) {
+    const toggle = expandedToggles[i];
+    if (document.body.contains(toggle)) {
+      toggle.click();
+      await delay(TIMING.QUICK);
+    }
+  }
+  
+  console.log(`Restored ${expandedToggles.length} toggle lists to collapsed state`);
 }
 
 async function formatParentheses() {
