@@ -6,10 +6,6 @@ const TIMING = {
   FOCUS: 50,
   // Short pause for quick UI updates between small operations (select/delete/insertText)
   QUICK: 20,
-  // Wait for dialogs/inputs to appear (Display Block only)
-  DIALOG: 100,
-  // Extra time for the math block to fully initialize (Display Block only)
-  MATH_BLOCK: 100,
   // Wait after a conversion for Notion to update the DOM before rescanning/continuing
   POST_CONVERT: 300,
 };
@@ -38,10 +34,9 @@ document.addEventListener("keydown", (event) => {
 // Main Conversion Flow
 
 async function convertMathEquations() {
-  // Hide the math dialog box and text action menu to reduce visual distraction during conversion.
+  // Hide the text action menu to reduce visual distraction during conversion.
   injectCSS(
-    'div[role="dialog"] { opacity: 0 !important; transform: scale(0.001) !important; } ' +
-      ".notion-text-action-menu { opacity: 0 !important; transform: scale(0.001) !important; pointer-events: none !important; }"
+    ".notion-text-action-menu { opacity: 0 !important; transform: scale(0.001) !important; pointer-events: none !important; }"
   );
 
   while (true) {
@@ -51,16 +46,7 @@ async function convertMathEquations() {
       break;
     }
 
-    const node = equations[0];
-    const match = node.nodeValue.match(EQUATION_REGEX);
-
-    if (match && match[0]) {
-      const equationText = match[0];
-      await convertSingleEquation(node, equationText);
-    } else {
-      console.warn("No equation match found in node, skipping");
-      break;
-    }
+    await convertSingleEquation(equations[0]);
   }
 
   // Remove the injected style
@@ -72,14 +58,8 @@ async function convertMathEquations() {
 
 // Equation Conversion
 
-async function convertSingleEquation(node, equationText) {
+async function convertSingleEquation({ node, equationText, startIndex }) {
   try {
-    const startIndex = node.nodeValue.indexOf(equationText);
-    if (startIndex === -1) {
-      console.warn("Could not find equation text in node:", equationText);
-      return;
-    }
-
     const editableParent = findEditableParent(node);
     if (!editableParent) {
       console.warn("Could not find editable parent");
@@ -98,79 +78,55 @@ async function convertSingleEquation(node, equationText) {
       return;
     }
 
-    const isDisplayEquation =
-      equationText.startsWith("$$") && equationText.endsWith("$$");
-    const latexContent = isDisplayEquation
-      ? equationText.slice(2, -2).trim()
-      : equationText.slice(1, -1);
-
-    if (isDisplayEquation) {
-      await convertDisplayEquation(latexContent);
-    } else {
-      await convertInlineEquation(latexContent);
+    const normalizedInput = normalizeEquationInput(node, equationText, startIndex);
+    if (!normalizedInput) {
+      console.warn("Could not normalize equation text:", equationText);
+      return;
     }
+
+    await convertEquationByTyping(normalizedInput);
   } catch (err) {
     console.error("Equation conversion failed:", err);
   }
 }
 
-async function convertDisplayEquation(latexContent) {
-  const selection = window.getSelection();
-
-  selection.deleteFromDocument();
-  await delay(TIMING.FOCUS);
-
-  document.execCommand("insertText", false, "/math");
-  await delay(TIMING.DIALOG);
-
-  dispatchKeyEvent("Enter", { keyCode: 13 });
-  await delay(TIMING.MATH_BLOCK);
-
-  if (isEditableElement(document.activeElement)) {
-    insertTextIntoActiveElement(document.activeElement, latexContent);
-  } else {
-    console.warn("Could not find math block input");
-  }
-
-  await delay(TIMING.DIALOG);
-
-  // Check if there's a KaTeX error in the dialog
-  const hasError = document.querySelector('div[role="alert"]') !== null;
-
-  if (hasError) {
-    console.warn("KaTeX error detected, closing dialog");
-    dispatchKeyEvent("Escape", { keyCode: 27 });
-  } else {
-    const doneClicked = clickDoneButton();
-    if (!doneClicked) {
-      dispatchKeyEvent("Escape", { keyCode: 27 });
-    }
-  }
-
-  await delay(TIMING.POST_CONVERT); // Wait for Notion to process the display equation
-}
-
-async function convertInlineEquation(latexContent) {
+async function convertEquationByTyping({ prefix, latexContent, suffix }) {
   const selection = window.getSelection();
   if (!selection.rangeCount || selection.isCollapsed) {
-    console.warn("No text selected for inline equation");
+    console.warn("No text selected for equation conversion");
     return;
   }
 
-  // Don't delete first - directly replace the selection with the new text
-  const fullEquationText = `$$${latexContent}$$`;
-  document.execCommand("insertText", false, fullEquationText);
+  const parts = [prefix, "$$", latexContent, "$$", suffix].filter(Boolean);
+  for (const part of parts) {
+    document.execCommand("insertText", false, part);
+    await delay(TIMING.QUICK);
+  }
 
-  await delay(TIMING.POST_CONVERT); // Wait for Notion to process the inline equation
+  await delay(TIMING.POST_CONVERT); // Wait for Notion to process the equation conversion
 }
 
-function insertTextIntoActiveElement(element, text) {
-  if (element.value !== undefined) {
-    element.value = text;
-    element.dispatchEvent(new Event("input", { bubbles: true }));
-  } else {
-    document.execCommand("insertText", false, text);
+function normalizeEquationInput(node, equationText, startIndex) {
+  const isDisplayEquation =
+    equationText.startsWith("$$") && equationText.endsWith("$$");
+  const latexContent = isDisplayEquation
+    ? equationText.slice(2, -2).trim()
+    : equationText.slice(1, -1).trim();
+
+  if (!latexContent) {
+    return null;
   }
+
+  const endIndex = startIndex + equationText.length;
+  const previousChar = startIndex > 0 ? node.nodeValue[startIndex - 1] : "";
+  const nextChar =
+    endIndex < node.nodeValue.length ? node.nodeValue[endIndex] : "";
+
+  return {
+    prefix: previousChar && !/\s/.test(previousChar) ? " " : "",
+    latexContent,
+    suffix: nextChar && !/\s/.test(nextChar) ? " " : "",
+  };
 }
 
 // injects a style rule into the page's <head>.
@@ -185,7 +141,7 @@ function injectCSS(css) {
 // Helper Functions
 
 function findEquations() {
-  const textNodes = [];
+  const matches = [];
   const walker = document.createTreeWalker(
     document.body,
     NodeFilter.SHOW_TEXT,
@@ -195,12 +151,21 @@ function findEquations() {
 
   let node;
   while ((node = walker.nextNode())) {
-    if (node.nodeValue && EQUATION_REGEX.test(node.nodeValue)) {
-      textNodes.push(node);
+    if (!node.nodeValue) {
+      continue;
+    }
+
+    const match = node.nodeValue.match(EQUATION_REGEX);
+    if (match && match[0]) {
+      matches.push({
+        node,
+        equationText: match[0],
+        startIndex: match.index ?? node.nodeValue.indexOf(match[0]),
+      });
     }
   }
 
-  return textNodes;
+  return matches;
 }
 
 function findEditableParent(node) {
@@ -222,45 +187,6 @@ function selectText(node, startIndex, length) {
   const selection = window.getSelection();
   selection.removeAllRanges();
   selection.addRange(range);
-}
-
-function clickDoneButton() {
-  const doneButton = Array.from(
-    document.querySelectorAll('[role="button"]')
-  ).find((btn) => btn.textContent.includes("Done"));
-
-  if (doneButton) {
-    doneButton.click();
-    return true;
-  }
-  return false;
-}
-
-function isEditableElement(element) {
-  return (
-    element &&
-    (element.isContentEditable ||
-      element.tagName === "INPUT" ||
-      element.tagName === "TEXTAREA")
-  );
-}
-
-function dispatchKeyEvent(key, options = {}) {
-  const activeElement = document.activeElement;
-  if (!activeElement) return;
-
-  activeElement.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      key: key,
-      code: options.code || `Key${key.toUpperCase()}`,
-      keyCode: options.keyCode || 0,
-      which: options.keyCode || 0,
-      ctrlKey: options.ctrlKey || false,
-      shiftKey: options.shiftKey || false,
-      bubbles: true,
-      cancelable: true,
-    })
-  );
 }
 
 function delay(ms) {
