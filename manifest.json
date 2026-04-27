@@ -3,7 +3,7 @@
   "name": "Notion Math Converter",
   "version": "1.0",
   "description": "Converts LaTeX-style math equations to Notion's native format.",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": ["activeTab"],
   "host_permissions": ["https://www.notion.so/*"],
   "content_scripts": [
     {
@@ -11,7 +11,10 @@
       "js": ["content.js"]
     }
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
-    "default_popup": "popup.html"
+    "default_title": "Convert Notion equations"
   }
 }
