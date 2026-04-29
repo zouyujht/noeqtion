@@ -15,7 +15,8 @@ _See the extension in action converting LaTeX equations to Notion's native math 
 ## Features
 
 - **Automatic Conversion**: Detects both inline (`$...$`) and block (`$$...$$`) equations.
-- **Keyboard Shortcut**: Convert all equations on the page with `Ctrl+Alt+M` (or use the extension popup).
+- **One-Click Conversion**: Click the extension icon to convert all equations on the current Notion page.
+- **Keyboard Shortcut**: Convert all equations on the page with `Ctrl+Alt+M`.
 
 That's it.
 
@@ -23,7 +24,7 @@ That's it.
 
 1. Install the extension in your browser
 2. Open a Notion page with LaTeX equations (like `$O(n)$` or `$$\int_0^\infty e^{-x^2}dx$$`)
-3. Press `Ctrl+Alt+M` (or click the extension icon and hit "Convert")
+3. Click the extension icon or press `Ctrl+Alt+M`
 4. Watch your equations transform into Notion's native math format
 
 ## Supported Browsers
@@ -58,7 +59,7 @@ The extension doesn't inject custom UI or modify Notion's core behavior. It auto
 
 This extension works great for standard use cases. But there are some edge cases where it may not work as expected.
 
-If you encounter issues with these or other scenarios, please [open an issue](https://github.com/voidCounter/noeqtion/issues) with details about the specific context where the conversion failed.
+If you encounter issues with these or other scenarios, please [open an issue](https://github.com/zouyujht/noeqtion/issues) with details about the specific context where the conversion failed.
 
 ## License
 
