@@ -59,7 +59,7 @@ The extension doesn't inject custom UI or modify Notion's core behavior. It auto
 
 This extension works great for standard use cases. But there are some edge cases where it may not work as expected.
 
-If you encounter issues with these or other scenarios, please [open an issue](https://github.com/voidCounter/noeqtion/issues) with details about the specific context where the conversion failed.
+If you encounter issues with these or other scenarios, please [open an issue](https://github.com/zouyujht/noeqtion/issues) with details about the specific context where the conversion failed.
 
 ## License
 

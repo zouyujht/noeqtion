@@ -1,1 +1,4 @@
 Extension.md
+node_modules/
+.kilo/node_modules/
+*.log
